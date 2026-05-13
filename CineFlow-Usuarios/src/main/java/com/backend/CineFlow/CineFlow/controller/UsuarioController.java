@@ -109,7 +109,7 @@ public class UsuarioController {
             Usuario usuarioActualizado = usuarioService.actualizarUsuarioDesdeDTO(id, dto);
             return ResponseEntity.ok(usuarioService.toProfile(usuarioActualizado));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().body(new ErrorResponse(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
         }
     }
 
@@ -129,5 +129,17 @@ public class UsuarioController {
     public ResponseEntity<Boolean> existeCorreo(@PathVariable String correo) {
         boolean existe = usuarioService.existeCorreo(correo);
         return ResponseEntity.ok(existe);
+    }
+
+    private static class ErrorResponse {
+        private final String message;
+
+        private ErrorResponse(String message) {
+            this.message = message;
+        }
+
+        public String getMessage() {
+            return message;
+        }
     }
 }
