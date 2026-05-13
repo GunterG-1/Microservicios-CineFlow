@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: CineFlow-Gateway
+  cloud:
+    gateway:
+      routes:
+        # Ruta para Usuarios (Puerto 8081)
+        - id: usuarios-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/usuarios/**
+          filters:
+            - StripPrefix=0
+
+        # Ruta para Cartelera (Puerto 8082)
+        - id: cartelera-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/cartelera/**
+          filters:
+            - StripPrefix=0
+
+        # Ruta para Confitería (Puerto 8083)
+        - id: confiteria-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/confiteria/**
+          filters:
+            - StripPrefix=0
+
+        # Ruta para Entradas (Puerto 8084)
+        - id: entradas-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/entradas/**
+          filters:
+            - StripPrefix=0
+
+      # Configuración global de CORS
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: false
+            maxAge: 3600
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web: INFO

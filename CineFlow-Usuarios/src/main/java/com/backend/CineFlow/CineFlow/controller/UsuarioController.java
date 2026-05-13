@@ -1,7 +1,9 @@
 package com.backend.CineFlow.CineFlow.controller;
 
+import com.backend.CineFlow.CineFlow.dto.ActualizarUsuarioDTO;
 import com.backend.CineFlow.CineFlow.dto.LoginRequest;
 import com.backend.CineFlow.CineFlow.dto.LoginResponse;
+import com.backend.CineFlow.CineFlow.dto.RegistroDTO;
 import com.backend.CineFlow.CineFlow.dto.UsuarioProfileResponse;
 import com.backend.CineFlow.CineFlow.model.Usuario;
 import com.backend.CineFlow.CineFlow.service.UsuarioService;
@@ -46,9 +48,20 @@ public class UsuarioController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    // POST: Register (crea usuario)
+    // POST: Register (crea usuario) - Nuevo método con DTO
     @PostMapping("/registrar")
-    public ResponseEntity<UsuarioProfileResponse> register(@Valid @RequestBody Usuario usuario) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegistroDTO registroDTO) {
+        try {
+            Usuario usuarioCreado = usuarioService.registrarUsuario(registroDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.toProfile(usuarioCreado));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    // POST: Register (método antiguo para compatibilidad)
+    @PostMapping("/registrar-completo")
+    public ResponseEntity<UsuarioProfileResponse> registerCompleto(@Valid @RequestBody Usuario usuario) {
         try {
             Usuario usuarioCreado = usuarioService.crearUsuario(usuario);
             return ResponseEntity.status(HttpStatus.CREATED).body(usuarioService.toProfile(usuarioCreado));
@@ -86,6 +99,17 @@ public class UsuarioController {
             return ResponseEntity.ok(usuario);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    // PUT: Actualizar usuario con método de pago (nuevo método con DTO)
+    @PutMapping("/{id}/actualizar")
+    public ResponseEntity<?> actualizarUsuarioConMetodoPago(@PathVariable long id, @Valid @RequestBody ActualizarUsuarioDTO dto) {
+        try {
+            Usuario usuarioActualizado = usuarioService.actualizarUsuarioDesdeDTO(id, dto);
+            return ResponseEntity.ok(usuarioService.toProfile(usuarioActualizado));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().body(new ErrorResponse(e.getMessage()));
         }
     }
 

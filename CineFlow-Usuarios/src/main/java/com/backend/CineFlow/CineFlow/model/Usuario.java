@@ -46,7 +46,6 @@ public class Usuario {
     @NotNull
     private LocalDate fechaNacimiento;
 
-    @Column(length = 100, nullable = false)
-    @NotBlank
+    @Column(length = 100, nullable = true)
     private String metodoPago;
 }

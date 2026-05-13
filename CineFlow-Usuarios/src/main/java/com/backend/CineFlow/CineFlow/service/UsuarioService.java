@@ -1,5 +1,7 @@
 package com.backend.CineFlow.CineFlow.service;
 
+import com.backend.CineFlow.CineFlow.dto.ActualizarUsuarioDTO;
+import com.backend.CineFlow.CineFlow.dto.RegistroDTO;
 import com.backend.CineFlow.CineFlow.dto.UsuarioProfileResponse;
 import com.backend.CineFlow.CineFlow.model.Usuario;
 import com.backend.CineFlow.CineFlow.repository.UsuarioRepository;
@@ -14,6 +16,30 @@ public class UsuarioService {
 
     @Autowired
     private UsuarioRepository usuarioRepository;
+
+    // Registrar nuevo usuario desde DTO
+    public Usuario registrarUsuario(RegistroDTO registroDTO) {
+        // Validar que las contraseñas coincidan
+        if (!registroDTO.getContrasena().equals(registroDTO.getConfirmarContrasena())) {
+            throw new IllegalArgumentException("Las contraseñas no coinciden");
+        }
+
+        // Validar que el correo no esté registrado
+        if (usuarioRepository.existsByCorreo(registroDTO.getCorreo())) {
+            throw new IllegalArgumentException("El correo ya está registrado");
+        }
+
+        // Crear nuevo usuario sin método de pago
+        Usuario usuario = new Usuario();
+        usuario.setNombreUsuario(registroDTO.getNombre());
+        usuario.setApellidoUsuario(registroDTO.getApellido());
+        usuario.setCorreo(registroDTO.getCorreo());
+        usuario.setContrasena(registroDTO.getContrasena());
+        usuario.setFechaNacimiento(registroDTO.getFechaNacimiento());
+        usuario.setMetodoPago(""); // Vacío inicialmente, se agregará en actualizar
+
+        return usuarioRepository.save(usuario);
+    }
 
     // Crear un nuevo usuario
     public Usuario crearUsuario(Usuario usuario) {
@@ -87,6 +113,39 @@ public class UsuarioService {
             return usuarioGuardado;
         }
         
+        throw new IllegalArgumentException("Usuario no encontrado con ID: " + id);
+    }
+
+    // Actualizar usuario desde DTO (incluye método de pago)
+    public Usuario actualizarUsuarioDesdeDTO(long id, ActualizarUsuarioDTO dto) {
+        Optional<Usuario> usuarioExistente = usuarioRepository.findById(id);
+
+        if (usuarioExistente.isPresent()) {
+            Usuario usuario = usuarioExistente.get();
+
+            // Actualizar nombre si se proporciona
+            if (dto.getNombre() != null && !dto.getNombre().isBlank()) {
+                usuario.setNombreUsuario(dto.getNombre());
+            }
+
+            // Actualizar apellido si se proporciona
+            if (dto.getApellido() != null && !dto.getApellido().isBlank()) {
+                usuario.setApellidoUsuario(dto.getApellido());
+            }
+
+            // Actualizar contraseña si se proporciona
+            if (dto.getContrasena() != null && !dto.getContrasena().isBlank()) {
+                usuario.setContrasena(dto.getContrasena());
+            }
+
+            // Actualizar método de pago
+            if (dto.getMetodoPago() != null && !dto.getMetodoPago().isBlank()) {
+                usuario.setMetodoPago(dto.getMetodoPago());
+            }
+
+            return usuarioRepository.save(usuario);
+        }
+
         throw new IllegalArgumentException("Usuario no encontrado con ID: " + id);
     }
 
