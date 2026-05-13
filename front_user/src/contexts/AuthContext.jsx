@@ -1,13 +1,32 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { api } from '../api';
 
 const AUTH_STORAGE_KEY = 'cine-flow-auth-state';
 const PROFILE_STORAGE_KEY = 'cine-flow-user-profile';
 
 const AuthContext = createContext(null);
 
+const normalizeProfile = (profile = {}) => ({
+  idUsuario: profile.idUsuario ?? profile.id ?? null,
+  nombreUsuario: profile.nombreUsuario ?? profile.name ?? '',
+  apellidoUsuario: profile.apellidoUsuario ?? profile.lastName ?? '',
+  correo: profile.correo ?? profile.email ?? '',
+  fechaNacimiento: profile.fechaNacimiento ?? profile.birthDate ?? '',
+  metodoPago: profile.metodoPago ?? profile.paymentMethod ?? '',
+});
+
+const getErrorMessage = (error, fallback = 'Ocurrio un error inesperado') => {
+  if (!error?.message) {
+    return fallback;
+  }
+
+  return error.message;
+};
+
 export const AuthProvider = ({ children }) => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(false);
 
   useEffect(() => {
     const storedValue = window.localStorage.getItem(AUTH_STORAGE_KEY);
@@ -19,67 +38,121 @@ export const AuthProvider = ({ children }) => {
 
     if (storedProfile) {
       try {
-        setUserProfile(JSON.parse(storedProfile));
+        setUserProfile(normalizeProfile(JSON.parse(storedProfile)));
       } catch {
         window.localStorage.removeItem(PROFILE_STORAGE_KEY);
       }
     }
   }, []);
 
-  const markAsRegistered = (profile = {}) => {
+  const persistSession = useCallback((profile = {}) => {
+    const normalizedProfile = normalizeProfile(profile);
     window.localStorage.setItem(AUTH_STORAGE_KEY, 'true');
-    window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+    window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(normalizedProfile));
     setIsRegistered(true);
-    setUserProfile(profile);
-  };
+    setUserProfile(normalizedProfile);
+  }, []);
 
-  const isRegisteredUser = useCallback((email) => {
-    if (!userProfile?.email || !email) {
+  const isRegisteredUser = useCallback(async (email) => {
+    if (!email?.trim()) {
       return false;
     }
 
-    return userProfile.email.trim().toLowerCase() === email.trim().toLowerCase();
-  }, [userProfile]);
-
-  const loginUser = useCallback((email, password) => {
-    if (!userProfile) {
+    try {
+      const encodedEmail = encodeURIComponent(email.trim());
+      const exists = await api.get(`/usuarios/existe-correo/${encodedEmail}`);
+      return Boolean(exists);
+    } catch {
       return false;
     }
+  }, []);
 
-    const isValidLogin = userProfile.email === email && userProfile.password === password;
+  const markAsRegistered = useCallback(async (profile = {}) => {
+    setIsLoadingAuth(true);
 
-    if (isValidLogin) {
-      window.localStorage.setItem(AUTH_STORAGE_KEY, 'true');
-      setIsRegistered(true);
+    try {
+      const createdProfile = await api.post('/usuarios/registrar', {
+        nombre: profile.nombre,
+        apellido: profile.apellido,
+        correo: profile.correo,
+        contrasena: profile.contrasena,
+        confirmarContrasena: profile.confirmarContrasena,
+        fechaNacimiento: profile.fechaNacimiento,
+      });
+
+      persistSession(createdProfile);
+      return { ok: true, profile: createdProfile };
+    } catch (error) {
+      return { ok: false, message: getErrorMessage(error, 'No se pudo completar el registro') };
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  }, [persistSession]);
+
+  const loginUser = useCallback(async (email, password) => {
+    setIsLoadingAuth(true);
+
+    try {
+      const response = await api.post('/usuarios/login', {
+        correo: email.trim(),
+        contrasena: password,
+      });
+
+      if (!response?.iniciadoSesion || !response?.usuario) {
+        return { ok: false, message: response?.mensaje || 'Credenciales invalidas' };
+      }
+
+      persistSession(response.usuario);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: getErrorMessage(error, 'No se pudo iniciar sesion') };
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  }, [persistSession]);
+
+  const updateProfile = useCallback(async (nextProfile = {}) => {
+    if (!userProfile?.idUsuario) {
+      return { ok: false, message: 'No se encontro el usuario autenticado' };
     }
 
-    return isValidLogin;
-  }, [userProfile]);
+    if (!nextProfile?.metodoPago?.trim()) {
+      return { ok: false, message: 'El metodo de pago es obligatorio' };
+    }
 
-  const updateProfile = useCallback((nextProfile = {}) => {
-    const mergedProfile = {
-      ...userProfile,
-      ...nextProfile,
-    };
+    setIsLoadingAuth(true);
 
-    window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(mergedProfile));
-    setUserProfile(mergedProfile);
-    setIsRegistered(true);
-    window.localStorage.setItem(AUTH_STORAGE_KEY, 'true');
-  }, [userProfile]);
+    try {
+      const updatedProfile = await api.put(`/usuarios/${userProfile.idUsuario}/actualizar`, {
+        nombre: nextProfile.nombre,
+        apellido: nextProfile.apellido,
+        metodoPago: nextProfile.metodoPago,
+        contrasena: nextProfile.contrasena,
+      });
+
+      persistSession(updatedProfile);
+      return { ok: true, profile: updatedProfile };
+    } catch (error) {
+      return { ok: false, message: getErrorMessage(error, 'No se pudo actualizar el perfil') };
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  }, [persistSession, userProfile]);
 
   const logout = useCallback(() => {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.localStorage.removeItem(PROFILE_STORAGE_KEY);
     setIsRegistered(false);
+    setUserProfile(null);
   }, []);
 
   const getDisplayName = useCallback(() => {
-    if (userProfile?.name?.trim()) {
-      return userProfile.name.trim();
+    if (userProfile?.nombreUsuario?.trim()) {
+      return userProfile.nombreUsuario.trim();
     }
 
-    if (userProfile?.email?.trim()) {
-      return userProfile.email.split('@')[0];
+    if (userProfile?.correo?.trim()) {
+      return userProfile.correo.split('@')[0];
     }
 
     return 'Usuario';
@@ -87,6 +160,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     isRegistered,
+    isLoadingAuth,
     userProfile,
     getDisplayName,
     markAsRegistered,
@@ -94,7 +168,7 @@ export const AuthProvider = ({ children }) => {
     loginUser,
     updateProfile,
     logout,
-  }), [getDisplayName, isRegistered, isRegisteredUser, loginUser, logout, updateProfile, userProfile]);
+  }), [getDisplayName, isLoadingAuth, isRegistered, isRegisteredUser, loginUser, logout, markAsRegistered, updateProfile, userProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -11,14 +11,22 @@ function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    
-    if (!loginUser(email, password)) {
-      setError('El correo o contraseña son incorrectos');
+
+    setError('');
+    setIsSubmitting(true);
+
+    const result = await loginUser(email, password);
+    setIsSubmitting(false);
+
+    if (!result.ok) {
+      setError(result.message || 'El correo o contraseña son incorrectos');
       return;
     }
+
     navigate('/');
   };
 
@@ -55,7 +63,9 @@ function Login() {
               }}
             />
             {error && <p className="auth-error">{error}</p>}
-            <button type="submit" disabled={!email || !password}>Entrar</button>
+            <button type="submit" disabled={isSubmitting || !email || !password}>
+              {isSubmitting ? 'Ingresando...' : 'Entrar'}
+            </button>
           </form>
           <p className="auth-switch">
             ¿No tienes cuenta? <Link to="/registrarse">Registrarse</Link>

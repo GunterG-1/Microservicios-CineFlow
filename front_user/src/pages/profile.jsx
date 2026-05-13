@@ -8,12 +8,22 @@ import { useAuth } from '../contexts/AuthContext';
 function Profile() {
   const navigate = useNavigate();
   const { isRegistered, userProfile, updateProfile, logout, getDisplayName } = useAuth();
-  const [formData, setFormData] = useState({ name: '', email: '' });
+  const [formData, setFormData] = useState({
+    nombre: '',
+    apellido: '',
+    metodoPago: '',
+    contrasena: '',
+  });
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setFormData({
-      name: userProfile?.name || '',
-      email: userProfile?.email || '',
+      nombre: userProfile?.nombreUsuario || '',
+      apellido: userProfile?.apellidoUsuario || '',
+      metodoPago: userProfile?.metodoPago || '',
+      contrasena: '',
     });
   }, [userProfile]);
 
@@ -44,9 +54,38 @@ function Profile() {
     }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    updateProfile(formData);
+
+    if (!formData.metodoPago.trim()) {
+      setError('Debes indicar un metodo de pago para guardar cambios.');
+      setFeedback('');
+      return;
+    }
+
+    setIsSaving(true);
+    setError('');
+    setFeedback('');
+
+    const result = await updateProfile({
+      nombre: formData.nombre.trim(),
+      apellido: formData.apellido.trim(),
+      metodoPago: formData.metodoPago.trim(),
+      contrasena: formData.contrasena.trim() || undefined,
+    });
+
+    setIsSaving(false);
+
+    if (!result.ok) {
+      setError(result.message || 'No se pudieron guardar los cambios.');
+      return;
+    }
+
+    setFormData((current) => ({
+      ...current,
+      contrasena: '',
+    }));
+    setFeedback('Perfil actualizado correctamente.');
   };
 
   const handleLogout = () => {
@@ -62,7 +101,7 @@ function Profile() {
           <aside className="profile-side">
             <div className="profile-avatar">{getDisplayName().charAt(0).toUpperCase()}</div>
             <h1>{getDisplayName()}</h1>
-            <p>{userProfile?.email || 'Sin correo guardado'}</p>
+            <p>{userProfile?.correo || 'Sin correo guardado'}</p>
             <button type="button" className="profile-logout" onClick={handleLogout}>
               Cerrar sesión
             </button>
@@ -70,21 +109,36 @@ function Profile() {
 
           <section className="profile-card">
             <h2>Mis datos</h2>
-            <p>Modifica tu nombre o correo y se guardará en este navegador.</p>
+            <p>Actualiza tus datos en el microservicio de usuarios.</p>
 
             <form className="profile-form" onSubmit={handleSubmit}>
               <label>
                 Nombre
-                <input name="name" type="text" value={formData.name} onChange={handleChange} />
+                <input name="nombre" type="text" value={formData.nombre} onChange={handleChange} />
               </label>
 
               <label>
-                Correo electrónico
-                <input name="email" type="email" value={formData.email} onChange={handleChange} />
+                Apellido
+                <input name="apellido" type="text" value={formData.apellido} onChange={handleChange} />
               </label>
 
+              <label>
+                Metodo de pago
+                <input name="metodoPago" type="text" value={formData.metodoPago} onChange={handleChange} />
+              </label>
+
+              <label>
+                Nueva contraseña (opcional)
+                <input name="contrasena" type="password" value={formData.contrasena} onChange={handleChange} />
+              </label>
+
+              {error && <p className="auth-error">{error}</p>}
+              {feedback && <p>{feedback}</p>}
+
               <div className="profile-actions">
-                <button type="submit" className="profile-link profile-link--primary">Guardar cambios</button>
+                <button type="submit" className="profile-link profile-link--primary" disabled={isSaving}>
+                  {isSaving ? 'Guardando...' : 'Guardar cambios'}
+                </button>
                 <Link to="/" className="profile-link">Volver al inicio</Link>
               </div>
             </form>

@@ -9,12 +9,15 @@ function Register() {
   const navigate = useNavigate();
   const { markAsRegistered, isRegisteredUser } = useAuth();
   const [name, setName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [email, setEmail] = useState('');
   const [emailConfirm, setEmailConfirm] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [error, setError] = useState('');
   const [overlayMessage, setOverlayMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!overlayMessage) {
@@ -28,24 +31,36 @@ function Register() {
     return () => window.clearTimeout(timeoutId);
   }, [overlayMessage]);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (isRegisteredUser(email)) {
-      setOverlayMessage('Usuario ya registrado. Inicia sesión o usa otro correo.');
-      return;
-    }
-    
-    if (name.length < 4) {
+    const normalizedName = name.trim();
+    const normalizedLastName = lastName.trim();
+    const normalizedEmail = email.trim();
+
+    setError('');
+    setOverlayMessage('');
+
+    if (normalizedName.length < 4) {
       setError('El nombre debe tener al menos 4 caracteres');
       return;
     }
-    
-    if (email !== emailConfirm) {
+
+    if (normalizedLastName.length < 2) {
+      setError('El apellido debe tener al menos 2 caracteres');
+      return;
+    }
+
+    if (!birthDate) {
+      setError('La fecha de nacimiento es obligatoria');
+      return;
+    }
+
+    if (normalizedEmail !== emailConfirm.trim()) {
       setError('Los correos electrónicos no coinciden');
       return;
     }
-    
+
     if (password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres');
       return;
@@ -56,14 +71,31 @@ function Register() {
       return;
     }
 
-    const normalizedName = name.trim();
-    const normalizedEmail = email.trim();
+    setIsSubmitting(true);
 
-    markAsRegistered({
-      name: normalizedName,
-      email: normalizedEmail,
-      password: password,
+    const exists = await isRegisteredUser(normalizedEmail);
+    if (exists) {
+      setOverlayMessage('Usuario ya registrado. Inicia sesión o usa otro correo.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = await markAsRegistered({
+      nombre: normalizedName,
+      apellido: normalizedLastName,
+      correo: normalizedEmail,
+      contrasena: password,
+      confirmarContrasena: passwordConfirm,
+      fechaNacimiento: birthDate,
     });
+
+    setIsSubmitting(false);
+
+    if (!result.ok) {
+      setError(result.message || 'No se pudo completar el registro');
+      return;
+    }
+
     navigate('/');
   };
 
@@ -84,6 +116,18 @@ function Register() {
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
+                setError('');
+              }}
+            />
+            <input
+              name="lastName"
+              type="text"
+              placeholder="Apellido (mínimo 2 caracteres)"
+              aria-label="Apellido"
+              required
+              value={lastName}
+              onChange={(e) => {
+                setLastName(e.target.value);
                 setError('');
               }}
             />
@@ -108,6 +152,17 @@ function Register() {
               value={emailConfirm}
               onChange={(e) => {
                 setEmailConfirm(e.target.value);
+                setError('');
+              }}
+            />
+            <input
+              name="birthDate"
+              type="date"
+              aria-label="Fecha de nacimiento"
+              required
+              value={birthDate}
+              onChange={(e) => {
+                setBirthDate(e.target.value);
                 setError('');
               }}
             />
@@ -136,8 +191,8 @@ function Register() {
               }}
             />
             {error && <p className="auth-error">{error}</p>}
-            <button type="submit" disabled={name.length < 4 || password.length < 8 || email !== emailConfirm || password !== passwordConfirm}>
-              Crear cuenta
+            <button type="submit" disabled={isSubmitting || name.trim().length < 4 || lastName.trim().length < 2 || !birthDate || password.length < 8 || email.trim() !== emailConfirm.trim() || password !== passwordConfirm}>
+              {isSubmitting ? 'Creando cuenta...' : 'Crear cuenta'}
             </button>
           </form>
           <p className="auth-switch">
